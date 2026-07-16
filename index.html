@@ -69,6 +69,15 @@
       justify-content: flex-end;
     }
 
+    .icon-button {
+      width: 34px;
+      min-width: 34px;
+      padding: 0;
+      border-radius: 999px;
+      font-size: 16px;
+      line-height: 1;
+    }
+
     .pill {
       min-height: 34px;
       display: inline-flex;
@@ -350,6 +359,53 @@
       text-decoration: underline;
     }
 
+    .guide-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(24, 25, 31, 0.38);
+    }
+
+    .guide-backdrop[hidden] {
+      display: none;
+    }
+
+    .guide-panel {
+      width: min(420px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(24, 25, 31, 0.28);
+    }
+
+    .guide-panel h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .guide-panel p {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .guide-panel strong {
+      color: var(--ink);
+    }
+
+    .guide-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 14px;
+    }
+
     @media (max-width: 900px) {
       .workspace {
         grid-template-columns: minmax(0, 1fr) minmax(210px, 30vw);
@@ -380,6 +436,12 @@
         min-height: 26px;
         padding: 4px 7px;
         font-size: 11px;
+      }
+
+      .icon-button {
+        width: 28px;
+        min-width: 28px;
+        font-size: 13px;
       }
 
       .workspace {
@@ -451,6 +513,18 @@
         font-size: 10px;
         line-height: 1.3;
       }
+
+      .guide-panel {
+        padding: 14px;
+      }
+
+      .guide-panel h2 {
+        font-size: 18px;
+      }
+
+      .guide-panel p {
+        font-size: 13px;
+      }
     }
   </style>
 </head>
@@ -461,6 +535,7 @@
       <div class="stats" aria-live="polite">
         <span class="pill">기록 <strong id="filledCount">0</strong>/24</span>
         <span class="pill">완성 <strong id="pairCount">0</strong>/12</span>
+        <button id="openGuide" class="icon-button" type="button" title="설명 보기" aria-label="설명 보기">?</button>
       </div>
     </header>
 
@@ -497,6 +572,18 @@
     </footer>
   </div>
 
+  <div id="guideDialog" class="guide-backdrop" hidden>
+    <div class="guide-panel" role="dialog" aria-modal="true" aria-labelledby="guideTitle">
+      <h2 id="guideTitle">사용 방법</h2>
+      <p><strong>A1</strong>부터 자동으로 선택되어 있습니다.</p>
+      <p>오른쪽 디지몬을 누르면 현재 칸에 기록되고, 다음 빈 칸으로 자동 이동합니다.</p>
+      <p>원하는 위치를 직접 누르면 자유롭게 칸을 바꿀 수 있고, 잘못 넣었을 때는 <strong>비우기</strong> 또는 Delete 키를 쓰면 됩니다.</p>
+      <div class="guide-actions">
+        <button id="closeGuide" type="button">확인</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const imageDir = "assets/digimon/";
     const digimons = [
@@ -528,6 +615,9 @@
     const totalVisitCountEl = document.querySelector("#totalVisitCount");
     const clearSelectedButton = document.querySelector("#clearSelected");
     const resetButton = document.querySelector("#resetBoard");
+    const openGuideButton = document.querySelector("#openGuide");
+    const guideDialog = document.querySelector("#guideDialog");
+    const closeGuideButton = document.querySelector("#closeGuide");
 
     function labelFor(index) {
       return `${rows[Math.floor(index / columns)]}${(index % columns) + 1}`;
@@ -538,6 +628,21 @@
         if (id) counts[id] = (counts[id] || 0) + 1;
         return counts;
       }, {});
+    }
+
+    function nextEmptyIndexAfter(index) {
+      for (let offset = 1; offset < state.length; offset += 1) {
+        const candidate = (index + offset) % state.length;
+        if (!state[candidate]) return candidate;
+      }
+
+      return index;
+    }
+
+    function focusSelectedCell() {
+      requestAnimationFrame(() => {
+        boardEl.querySelectorAll(".cell")[selectedIndex]?.focus();
+      });
     }
 
     function renderBoard() {
@@ -599,8 +704,11 @@
         item.disabled = isDisabled;
         item.setAttribute("aria-label", `${digimon.name} ${count}개`);
         item.addEventListener("click", () => {
-          state[selectedIndex] = digimon.id;
+          const currentIndex = selectedIndex;
+          state[currentIndex] = digimon.id;
+          selectedIndex = nextEmptyIndexAfter(currentIndex);
           render();
+          focusSelectedCell();
         });
 
         const img = document.createElement("img");
@@ -719,6 +827,25 @@
       }
     }
 
+    function showGuide() {
+      guideDialog.hidden = false;
+      closeGuideButton.focus();
+    }
+
+    function hideGuide() {
+      guideDialog.hidden = true;
+      storageSet("digimon-memory-helper:guide-seen", "1");
+      focusSelectedCell();
+    }
+
+    function initGuide() {
+      if (storageGet("digimon-memory-helper:guide-seen") !== "1") {
+        showGuide();
+      } else {
+        focusSelectedCell();
+      }
+    }
+
     clearSelectedButton.addEventListener("click", () => {
       state[selectedIndex] = null;
       render();
@@ -728,29 +855,51 @@
       state.fill(null);
       selectedIndex = 0;
       render();
+      focusSelectedCell();
+    });
+
+    openGuideButton.addEventListener("click", showGuide);
+
+    closeGuideButton.addEventListener("click", hideGuide);
+
+    guideDialog.addEventListener("click", (event) => {
+      if (event.target === guideDialog) {
+        hideGuide();
+      }
     });
 
     window.addEventListener("keydown", (event) => {
+      if (!guideDialog.hidden) {
+        if (event.key === "Escape") {
+          hideGuide();
+        }
+        return;
+      }
+
       const row = rows.indexOf(event.key.toUpperCase());
       if (row >= 0) {
         selectedIndex = row * columns + (selectedIndex % columns);
         render();
+        focusSelectedCell();
       }
 
       const number = Number(event.key);
       if (number >= 1 && number <= columns) {
         selectedIndex = Math.floor(selectedIndex / columns) * columns + number - 1;
         render();
+        focusSelectedCell();
       }
 
       if (event.key === "Backspace" || event.key === "Delete") {
         state[selectedIndex] = null;
         render();
+        focusSelectedCell();
       }
     });
 
     render();
     initVisitCounter();
+    initGuide();
   </script>
 </body>
 </html>

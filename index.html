@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>디지몬 그림 맞추기</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f6f1;
+      --panel: #ffffff;
+      --ink: #18191f;
+      --muted: #6c717c;
+      --line: #d8d5ca;
+      --accent: #e24a3b;
+      --accent-soft: #ffe7e1;
+      --sky: #2477a8;
+      --green: #1f8f67;
+      --shadow: 0 16px 38px rgba(36, 39, 45, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "Noto Sans KR", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        linear-gradient(135deg, rgba(226, 74, 59, 0.08), transparent 30%),
+        linear-gradient(315deg, rgba(36, 119, 168, 0.11), transparent 34%),
+        var(--bg);
+    }
+
+    .app {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 3vw, 36px);
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .stats {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 11px;
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pill strong {
+      color: var(--ink);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .board-wrap,
+    .palette-wrap {
+      background: rgba(255, 255, 255, 0.88);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .board-toolbar,
+    .palette-head {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .selected-label {
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .selected-label strong {
+      color: var(--accent);
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 12px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--sky);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
+    .danger {
+      color: var(--accent);
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-rows: repeat(6, minmax(92px, 1fr));
+      gap: 8px;
+      padding: 12px;
+      aspect-ratio: 4 / 6;
+      min-height: 640px;
+    }
+
+    .cell {
+      position: relative;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      min-width: 0;
+      min-height: 0;
+      border: 2px solid #cfcabd;
+      border-radius: 8px;
+      background:
+        linear-gradient(135deg, rgba(36, 119, 168, 0.08), rgba(31, 143, 103, 0.08)),
+        #fbfaf6;
+      cursor: pointer;
+      transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    .cell:hover {
+      transform: translateY(-1px);
+      border-color: var(--sky);
+    }
+
+    .cell.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    .cell.matched {
+      border-color: var(--green);
+    }
+
+    .coord {
+      position: absolute;
+      top: 6px;
+      left: 7px;
+      z-index: 1;
+      min-width: 30px;
+      border-radius: 999px;
+      padding: 3px 7px;
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .cell img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .empty-mark {
+      color: #a39f95;
+      font-size: 22px;
+      font-weight: 900;
+    }
+
+    .palette-title {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 900;
+    }
+
+    .palette {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px;
+      max-height: calc(100vh - 150px);
+      overflow: auto;
+    }
+
+    .digimon {
+      display: grid;
+      grid-template-rows: 84px auto;
+      min-width: 0;
+      overflow: hidden;
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      text-align: left;
+      transition: transform 120ms ease, border-color 120ms ease;
+    }
+
+    .digimon:hover {
+      transform: translateY(-1px);
+      border-color: var(--sky);
+    }
+
+    .digimon.disabled {
+      cursor: not-allowed;
+      opacity: 0.42;
+    }
+
+    .digimon.complete {
+      border-color: var(--green);
+    }
+
+    .digimon img {
+      width: 100%;
+      height: 84px;
+      object-fit: cover;
+      display: block;
+      background: #eee;
+    }
+
+    .digimon-info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      min-width: 0;
+      padding: 8px;
+    }
+
+    .name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .count {
+      flex: 0 0 auto;
+      border-radius: 999px;
+      padding: 2px 7px;
+      background: #f0eee7;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .complete .count {
+      background: rgba(31, 143, 103, 0.12);
+      color: var(--green);
+    }
+
+    @media (max-width: 900px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .palette {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .app {
+        width: min(100vw - 20px, 1180px);
+        padding: 12px 0;
+      }
+
+      header,
+      .board-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .stats,
+      .actions {
+        justify-content: flex-start;
+        width: 100%;
+      }
+
+      .board {
+        gap: 5px;
+        padding: 8px;
+        min-height: auto;
+        grid-template-rows: repeat(6, minmax(66px, 1fr));
+      }
+
+      .coord {
+        top: 4px;
+        left: 4px;
+        min-width: 25px;
+        padding: 2px 5px;
+        font-size: 10px;
+      }
+
+      .empty-mark {
+        font-size: 16px;
+      }
+
+      .palette {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        padding: 8px;
+      }
+
+      .digimon {
+        grid-template-rows: 72px auto;
+      }
+
+      .digimon img {
+        height: 72px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>디지몬 그림 맞추기</h1>
+      <div class="stats" aria-live="polite">
+        <span class="pill">기록 <strong id="filledCount">0</strong>/24</span>
+        <span class="pill">완성 <strong id="pairCount">0</strong>/12</span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="board-wrap" aria-label="6행 4열 카드 위치">
+        <div class="board-toolbar">
+          <div class="selected-label">선택 <strong id="selectedLabel">A1</strong></div>
+          <div class="actions">
+            <button id="clearSelected" type="button">비우기</button>
+            <button id="resetBoard" class="danger" type="button">초기화</button>
+          </div>
+        </div>
+        <div id="board" class="board"></div>
+      </section>
+
+      <aside class="palette-wrap" aria-label="디지몬 목록">
+        <div class="palette-head">
+          <p class="palette-title">디지몬</p>
+        </div>
+        <div id="palette" class="palette"></div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const imageDir = "assets/digimon/";
+    const digimons = [
+      ["agumon", "아구몬", "agumon.jpg"],
+      ["gabumon", "가브몬", "gabumon.jpg"],
+      ["gomamon", "쉬라몬", "gomamon.jpg"],
+      ["guilmon", "길몬", "guilmon.jpg"],
+      ["hawkmon", "호크몬", "hawkmon.jpg"],
+      ["patamon", "파닥몬", "patamon.jpg"],
+      ["piyomon", "피요몬", "piyomon.jpg"],
+      ["plotmon", "플롯트몬", "plotmon.jpg"],
+      ["renamon", "레나몬", "renamon.jpg"],
+      ["terriermon", "테리어몬", "terriermon.jpg"],
+      ["v-mon", "브이몬", "v-mon.jpg"],
+      ["wormmon", "추추몬", "wormmon.jpg"]
+    ].map(([id, name, file]) => ({ id, name, src: imageDir + file }));
+
+    const rows = ["A", "B", "C", "D", "E", "F"];
+    const columns = 4;
+    const state = Array(rows.length * columns).fill(null);
+    let selectedIndex = 0;
+
+    const boardEl = document.querySelector("#board");
+    const paletteEl = document.querySelector("#palette");
+    const selectedLabelEl = document.querySelector("#selectedLabel");
+    const filledCountEl = document.querySelector("#filledCount");
+    const pairCountEl = document.querySelector("#pairCount");
+    const clearSelectedButton = document.querySelector("#clearSelected");
+    const resetButton = document.querySelector("#resetBoard");
+
+    function labelFor(index) {
+      return `${rows[Math.floor(index / columns)]}${(index % columns) + 1}`;
+    }
+
+    function countsById() {
+      return state.reduce((counts, id) => {
+        if (id) counts[id] = (counts[id] || 0) + 1;
+        return counts;
+      }, {});
+    }
+
+    function renderBoard() {
+      boardEl.innerHTML = "";
+      const counts = countsById();
+
+      state.forEach((id, index) => {
+        const cell = document.createElement("button");
+        const digimon = digimons.find((item) => item.id === id);
+        cell.type = "button";
+        cell.className = [
+          "cell",
+          selectedIndex === index ? "selected" : "",
+          id && counts[id] === 2 ? "matched" : ""
+        ].filter(Boolean).join(" ");
+        cell.setAttribute("aria-label", `${labelFor(index)} 위치`);
+        cell.addEventListener("click", () => {
+          selectedIndex = index;
+          render();
+        });
+
+        const coord = document.createElement("span");
+        coord.className = "coord";
+        coord.textContent = labelFor(index);
+        cell.appendChild(coord);
+
+        if (digimon) {
+          const img = document.createElement("img");
+          img.src = digimon.src;
+          img.alt = digimon.name;
+          cell.appendChild(img);
+        } else {
+          const empty = document.createElement("span");
+          empty.className = "empty-mark";
+          empty.textContent = "+";
+          cell.appendChild(empty);
+        }
+
+        boardEl.appendChild(cell);
+      });
+    }
+
+    function renderPalette() {
+      paletteEl.innerHTML = "";
+      const counts = countsById();
+      const selectedId = state[selectedIndex];
+
+      digimons.forEach((digimon) => {
+        const count = counts[digimon.id] || 0;
+        const isComplete = count === 2;
+        const isDisabled = isComplete && selectedId !== digimon.id;
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = [
+          "digimon",
+          isComplete ? "complete" : "",
+          isDisabled ? "disabled" : ""
+        ].filter(Boolean).join(" ");
+        item.disabled = isDisabled;
+        item.setAttribute("aria-label", `${digimon.name} ${count}개`);
+        item.addEventListener("click", () => {
+          state[selectedIndex] = digimon.id;
+          render();
+        });
+
+        const img = document.createElement("img");
+        img.src = digimon.src;
+        img.alt = "";
+        item.appendChild(img);
+
+        const info = document.createElement("span");
+        info.className = "digimon-info";
+
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = digimon.name;
+
+        const countEl = document.createElement("span");
+        countEl.className = "count";
+        countEl.textContent = `${count}/2`;
+
+        info.append(name, countEl);
+        item.appendChild(info);
+        paletteEl.appendChild(item);
+      });
+    }
+
+    function renderStats() {
+      const counts = countsById();
+      filledCountEl.textContent = state.filter(Boolean).length;
+      pairCountEl.textContent = Object.values(counts).filter((count) => count === 2).length;
+      selectedLabelEl.textContent = labelFor(selectedIndex);
+      clearSelectedButton.disabled = !state[selectedIndex];
+    }
+
+    function render() {
+      renderStats();
+      renderBoard();
+      renderPalette();
+    }
+
+    clearSelectedButton.addEventListener("click", () => {
+      state[selectedIndex] = null;
+      render();
+    });
+
+    resetButton.addEventListener("click", () => {
+      state.fill(null);
+      selectedIndex = 0;
+      render();
+    });
+
+    window.addEventListener("keydown", (event) => {
+      const row = rows.indexOf(event.key.toUpperCase());
+      if (row >= 0) {
+        selectedIndex = row * columns + (selectedIndex % columns);
+        render();
+      }
+
+      const number = Number(event.key);
+      if (number >= 1 && number <= columns) {
+        selectedIndex = Math.floor(selectedIndex / columns) * columns + number - 1;
+        render();
+      }
+
+      if (event.key === "Backspace" || event.key === "Delete") {
+        state[selectedIndex] = null;
+        render();
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
